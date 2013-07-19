@@ -9,8 +9,10 @@ import common.Change
 import transformation.TreeFactory
 import analysis.TreeAnalysis
 import tools.nsc.symtab.Flags
+import scala.tools.refactoring.common.PimpedTrees
 
-abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analysis.Indexes with TreeFactory with common.InteractiveScalaCompiler  {
+
+abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analysis.Indexes with TreeFactory with common.InteractiveScalaCompiler with PimpedTrees {
     
   import global._
       
@@ -33,10 +35,10 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   }
     
   def perform(selection: Selection, prepared: PreparationResult, newName: RefactoringParameters): Either[RefactoringError, List[Change]] = {
-
+    
     trace("Selected tree is %s", prepared.selectedTree)
 
-    val sym = prepared.selectedTree.symbol
+    val sym = findSelectedSymbol(prepared.selectedTree, selection)
     
     val occurences = index.occurences(sym) 
     
@@ -72,5 +74,20 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
     val renamedTrees = occurences flatMap (rename(_))
     
     Right(refactor(renamedTrees))
+  }
+  
+  def findSelectedSymbol(selectedTree: SymTree, selection: Selection): Symbol = {
+    implicit def intToRangeInclusionTester(i: Int) = new AnyRef {
+      def includedIn(position: Position) = position.start <= i && position.end >= i
+    }
+
+    val treeSymbol = selectedTree.symbol
+    selectedTree match {
+      case Import(expr, selectors) => {
+        val markedSelector = selectors.find{case ImportSelector(_, namePos, _, _) => namePos.includedIn(selection.pos)}
+        markedSelector.flatMap(s => findSymbolForImportSelector(expr, s.name)).getOrElse(treeSymbol)
+      }
+      case _ => treeSymbol
+    }
   }
 }
