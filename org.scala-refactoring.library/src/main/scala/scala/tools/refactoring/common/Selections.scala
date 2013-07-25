@@ -38,6 +38,13 @@ trait Selections extends TreeTraverser with common.PimpedTrees {
       // extractFromMethodWithMultipleAssignment TestCase.
       new global.Traverser {
         override def traverse(t: Tree) {
+          if(t.symbol != null && t.symbol != NoSymbol) {
+            val selectedAnnotations = t.symbol.annotations.filter { a =>
+              a.pos.isRange && pos.includes(a.pos)
+            }
+            if(!selectedAnnotations.isEmpty) hits += t
+          }
+          
           if (t.pos.isRange && pos.includes(t.pos)) {
             hits += t
           } else
@@ -93,9 +100,19 @@ trait Selections extends TreeTraverser with common.PimpedTrees {
      * If multiple trees of the type are found, the last one (i.e. the deepest child) is returned.
      */
     def findSelectedWithPredicate(predicate: Tree => Boolean): Option[Tree] = {
-
+      
+      def annotationOrTreeContainsPos(t: Tree) = {
+        if(isPosContainedIn(pos, t.pos)) {
+          true
+        } else {
+          val positions = annotationsOfTree(t).filter(_.pos != NoPosition).map(a => a.pos.withStart(a.pos.start - 1))
+          positions.exists(isPosContainedIn(pos, _))
+        }
+      }
+      
+      
       val filterer = new FilterTreeTraverser(cond(_) {
-        case t => predicate(t) && isPosContainedIn(pos, t.pos)
+        case t => predicate(t) && annotationOrTreeContainsPos(t)
       })
 
       filterer.traverse(root)
@@ -103,6 +120,38 @@ trait Selections extends TreeTraverser with common.PimpedTrees {
       filterer.hits.lastOption
     }
 
+    def isAnnotationSelected: Boolean = 
+      selectedSymbolTree.map(isAnnotationOfTreeSelected).getOrElse(false)
+      
+    def selectedAnnotation: Option[Symbol] = {
+      selectedSymbolTree.flatMap { sst =>
+        val annotations = annotationsOfTree(sst)
+        val positions = annotations.map(a => a.pos.withStart(a.pos.start - 1))
+        val candidates = annotations.zip(positions).collect {
+          case (a, p) if isPosContainedIn(pos, p) => a.symbol
+        }
+        candidates.headOption
+      }
+    }
+    
+    private def isAnnotationOfTreeSelected(t: Tree): Boolean = {
+      val tPos = t.pos
+      if (isPosContainedIn(pos, tPos) || isPosContainedIn(tPos, pos)) {
+        false
+      } else {
+        val annotations = annotationsOfTree(t)
+        val positions = annotations.map(a => a.pos.withStart(a.pos.start - 1))
+        positions.exists(isPosContainedIn(pos, _))
+      }
+    }
+    
+    private def annotationsOfTree(t: Tree) = {
+      if(t.symbol != null && t.symbol != NoSymbol && t.symbol.pos != NoPosition)
+        t.symbol.annotations
+      else
+        Nil
+    }
+    
     private[refactoring] lazy val allSelectedTrees: List[Tree] = {
       selectedTopLevelTrees flatMap (_ filter (t => t.pos.isRange && pos.includes(t.pos)))
     }

@@ -350,12 +350,24 @@ trait TreeTraverser {
         case _ => ()
       }
 
+      // TODO: weird start >
+      t match {
+        case annotatedTree: Tree if annotatedTree.symbol != null && annotatedTree.symbol != NoSymbol =>
+          annotatedTree.symbol.annotations foreach { annotation =>
+            val annotationSymbol = annotation.tpe.typeSymbol
+            if(annotationSymbol != NoSymbol)
+              f(annotationSymbol, annotatedTree)
+          }
+        case _ => ()
+      }
+
       t match {
         case _: NamedArgument | _: NameTree | _: MultipleAssignment =>
           ()
         case t =>
           super.traverse(t)
       }
+      // TODO: weird end <
     }
 
     private def between(t1: Tree, t2: Tree) = {
