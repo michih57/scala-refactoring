@@ -10,6 +10,7 @@ import transformation.TreeFactory
 import analysis.TreeAnalysis
 import tools.nsc.symtab.Flags
 import scala.tools.refactoring.common.PimpedTrees
+import scala.collection.immutable.ListMap
 
 
 abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analysis.Indexes with TreeFactory with common.InteractiveScalaCompiler with PimpedTrees {
@@ -53,7 +54,23 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
       case t: ImportSelectorTree => 
         mkRenamedImportTree(t, newName)
       case t: SymTree => 
-        mkRenamedSymTree(t, newName) setPos (t.pos withStart t.pos.start)
+        val annotations = t.symbol.annotations
+        val referenced = annotations.find(a => a.symbol == sym)
+        val renamed = referenced match {
+          case Some(ann) =>
+            val duplicate = t.duplicate
+            duplicate.symbol.removeAnnotation(sym)
+            val tpe = new Type {
+              override def safeToString = newName
+            }
+            val renamedAnn = Annotation(tpe, List()/*ann.scalaArgs*/, ann.javaArgs) setPos NoPosition
+            duplicate.symbol.addAnnotation(renamedAnn)
+            duplicate
+          case None => mkRenamedSymTree(t, newName) setPos (t.pos withStart t.pos.start)
+        }
+        
+        renamed replaces t
+        
       case t: TypeTree => 
         mkRenamedTypeTree(t, newName, prepared.selectedTree.symbol)
       case t @ Literal(Constant(value: TypeRef)) if isClassTag(t.value) =>
@@ -82,12 +99,16 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
     }
 
     val treeSymbol = selectedTree.symbol
+    
     selectedTree match {
       case Import(expr, selectors) => {
         val markedSelector = selectors.find{case ImportSelector(_, namePos, _, _) => namePos.includedIn(selection.pos)}
         markedSelector.flatMap(s => findSymbolForImportSelector(expr, s.name)).getOrElse(treeSymbol)
       }
+      case _ if selection.isAnnotationSelected => selection.selectedAnnotation.getOrElse(treeSymbol)
       case _ => treeSymbol
     }
   }
+  
+  
 }

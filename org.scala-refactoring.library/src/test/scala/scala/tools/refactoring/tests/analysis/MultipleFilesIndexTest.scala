@@ -35,10 +35,14 @@ class MultipleFilesIndexTest extends TestHelper with GlobalIndexes with FreshCom
 
   def findReferences(pro: FileSet): List[String] = {
 
-    val index = buildIndex(pro)
-              
     val sym = selection(this, pro).selectedSymbols head
     
+    findReferencesOfSymbol(sym)(pro)
+  }
+  
+  def findReferencesOfSymbol(sym: Symbol)(pro: FileSet): List[String] = {
+    val index = buildIndex(pro)
+              
     val occurrences = global.ask { () =>
       index.occurences(sym)
     }
@@ -441,5 +445,20 @@ class MultipleFilesIndexTest extends TestHelper with GlobalIndexes with FreshCom
     "someMethod on line 3, someMethod on line 6, someMethod on line 9"
 
   } apply(findOverrides)
+  
+  @Test
+  def javaAnnotation = {
+    val fileSet = new FileSet {
+      """
+      @Deprecated
+      case class Annotated
+      """ becomes
+      "Annotated on line 3"
+    }
+    val annotationSymbol = global.ask { () =>
+      global.rootMirror.getClassByName(global.newTypeName("java.lang.Deprecated"))
+    }
+    fileSet(findReferencesOfSymbol(annotationSymbol) _)
+  }
 }
 

@@ -1418,4 +1418,85 @@ class Blubb
     }
     """
   } applyRefactoring(renameTo("getContent"))
+  
+  @Test
+  def renameJavaClassAnnotation = new FileSet {
+    """
+    package renameAnnotation
+    
+    /*(*/@Deprecated/*)*/
+    class Annotated
+    """ becomes
+    """
+    package renameAnnotation
+    
+    /*(*/@Deprecated/*)*/
+    @Override
+    class Annotated
+    """
+  } applyRefactoring(renameTo("Override"))
+  
+  @Test
+  def renameImportedJavaClassAnnotation = new FileSet {
+    """
+    package renameImportedJavaAnnotation
+    
+    import javax.xml.bind.annotation.XmlRootElement
+    
+    /*(*/@XmlRootElement/*)*/
+    class Element(x: String)
+    """ becomes
+    """
+    package renameImportedJavaAnnotation
+    
+    import javax.xml.bind.annotation.Root
+    
+    /*(*/@XmlRootElement/*)*/
+    @Root
+    class Element(x: String)
+    """
+  } applyRefactoring(renameTo("Root"))
+  
+  @Test
+  def renameJavaValAnnotation = new FileSet {
+    """
+    package renameValAnnotation
+    
+    class Annotated {
+      /*(*/@Deprecated/*)*/
+      val x = 57
+    }
+    """ becomes
+    """
+    package renameValAnnotation
+    
+    class Annotated {
+    /*(*/@Deprecated/*)*/
+    @Override
+    val x = 57
+    }
+    """
+  } applyRefactoring(renameTo("Override"))
+  
+  @Test
+  def renameAnnotationOnImport = new FileSet {
+    """
+    package renameAnnotationOnImport
+    
+    import javax.xml.bind.annotation./*(*/XmlRootElement/*)*/
+    
+    @XmlRootElement
+    class Element(x: String)
+    """ becomes
+    """
+    package renameAnnotationOnImport
+    
+    import javax.xml.bind.annotation./*(*/Root/*)*/
+    
+    @XmlRootElement
+    @Root
+    class Element(x: String)
+    """
+  } applyRefactoring(renameTo("Root"))
+  
 }

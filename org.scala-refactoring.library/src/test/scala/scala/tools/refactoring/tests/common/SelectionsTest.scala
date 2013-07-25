@@ -35,6 +35,12 @@ class SelectionsTest extends TestHelper {
     assertEquals(expectedSymbols, selection.selectedSymbols mkString ", ")
   }
   
+  def assertAnnotationSelection(expectedSymbols: String, src: String) = {
+    val selection = getIndexedSelection(src)
+    
+    assertEquals(expectedSymbols, selection.selectedAnnotation.map(_.toString).getOrElse(""))
+  }
+  
   @Test
   def findValDefInMethod() = {
     assertSelection(
@@ -144,6 +150,16 @@ class SelectionsTest extends TestHelper {
           copy * 5
         }
       }
+    """)
+  }
+  
+  @Test
+  def selectAnnotation() = {
+    assertAnnotationSelection("class Deprecated", """
+        package selectAnnotation
+        
+        /*(*/@Deprecated/*)*/
+        class Annotated
     """)
   }
 }
