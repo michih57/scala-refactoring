@@ -60,69 +60,108 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
   } applyRefactoring(renameTo("RoundStrategy"))
   
   @Test
-  def renameImported = new FileSet {
+  def renameEnumValue = new FileSet {
     """
-    package rename.imported
-    
-    import java.io.File
+    package rename.javaEnumValue
     
     class SUser {
-      val f: /*(*/File/*)*/ = new File("foo.txt")
+      val r: java.math.RoundingMode = java.math.RoundingMode./*(*/CEILING/*)*/
     }
     """ becomes
     """
-    package rename.imported
-    
-    import java.io.JFile
+    package rename.javaEnumValue
     
     class SUser {
-      val f: /*(*/JFile/*)*/ = new JFile("foo.txt")
+      val r: java.math.RoundingMode = java.math.RoundingMode./*(*/NEW_VALUE/*)*/
     }
     """
-  } applyRefactoring(renameTo("JFile"))
+  } applyRefactoring(renameTo("NEW_VALUE"))
+  
+  
   
   @Test
-  def renameImportedAtImport = new FileSet {
+  @Ignore
+  def renameJavaClassAnnotation = new FileSet {
     """
-    package rename.imported
+    package renameAnnotation
     
-    import java.io./*(*/File/*)*/
-    
-    class SUser {
-      val f: File = new File("foo.txt")
-    }
+    /*(*/@Deprecated/*)*/
+    class Annotated
     """ becomes
     """
-    package rename.imported
+    package renameAnnotation
     
-    import java.io./*(*/JFile/*)*/
-    
-    class SUser {
-      val f: JFile = new JFile("foo.txt")
-    }
+    /*(*/@Deprecated/*)*/
+    @Override
+    class Annotated
     """
-  } applyRefactoring(renameTo("JFile"))
+  } applyRefactoring(renameTo("Override"))
   
   @Test
-  def renameImportedFromMultipleImports = new FileSet {
+  @Ignore
+  def renameImportedJavaClassAnnotation = new FileSet {
     """
-    package rename.importedFromMultipleImports
+    package renameImportedJavaAnnotation
     
-    import java.io.{InputStream, /*(*/File/*)*/}
+    import javax.xml.bind.annotation.XmlRootElement
     
-    class SUser {
-      val f: File = new File("foo.txt")
+    /*(*/@XmlRootElement/*)*/
+    class Element(x: String)
+    """ becomes
+    """
+    package renameImportedJavaAnnotation
+    
+    import javax.xml.bind.annotation.Root
+    
+    /*(*/@XmlRootElement/*)*/
+    @Root
+    class Element(x: String)
+    """
+  } applyRefactoring(renameTo("Root"))
+  
+  @Test
+  @Ignore
+  def renameJavaValAnnotation = new FileSet {
+    """
+    package renameValAnnotation
+    
+    class Annotated {
+      /*(*/@Deprecated/*)*/
+      val x = 57
     }
     """ becomes
     """
-    package rename.importedFromMultipleImports
+    package renameValAnnotation
     
-    import java.io.{InputStream, /*(*/JFile/*)*/}
-    
-    class SUser {
-      val f: JFile = new JFile("foo.txt")
+    class Annotated {
+    /*(*/@Deprecated/*)*/
+    @Override
+    val x = 57
     }
     """
-  } applyRefactoring(renameTo("JFile"))
+  } applyRefactoring(renameTo("Override"))
+  
+  @Test
+  @Ignore
+  def renameAnnotationOnImport = new FileSet {
+    """
+    package renameAnnotationOnImport
+    
+    import javax.xml.bind.annotation./*(*/XmlRootElement/*)*/
+    
+    @XmlRootElement
+    class Element(x: String)
+    """ becomes
+    """
+    package renameAnnotationOnImport
+    
+    import javax.xml.bind.annotation./*(*/Root/*)*/
+    
+    @XmlRootElement
+    @Root
+    class Element(x: String)
+    """
+  } applyRefactoring(renameTo("Root"))
+  
   
 }
