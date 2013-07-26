@@ -1440,83 +1440,135 @@ class Blubb
   } applyRefactoring(renameTo("getContent"))
   
   @Test
-  def renameJavaClassAnnotation = new FileSet {
+  def renameImported = new FileSet {
     """
-    package renameAnnotation
+    package rename.imported
     
-    /*(*/@Deprecated/*)*/
-    class Annotated
-    """ becomes
-    """
-    package renameAnnotation
+    import java.io.File
     
-    /*(*/@Deprecated/*)*/
-    @Override
-    class Annotated
-    """
-  } applyRefactoring(renameTo("Override"))
-  
-  @Test
-  def renameImportedJavaClassAnnotation = new FileSet {
-    """
-    package renameImportedJavaAnnotation
-    
-    import javax.xml.bind.annotation.XmlRootElement
-    
-    /*(*/@XmlRootElement/*)*/
-    class Element(x: String)
-    """ becomes
-    """
-    package renameImportedJavaAnnotation
-    
-    import javax.xml.bind.annotation.Root
-    
-    /*(*/@XmlRootElement/*)*/
-    @Root
-    class Element(x: String)
-    """
-  } applyRefactoring(renameTo("Root"))
-  
-  @Test
-  def renameJavaValAnnotation = new FileSet {
-    """
-    package renameValAnnotation
-    
-    class Annotated {
-      /*(*/@Deprecated/*)*/
-      val x = 57
+    class SUser {
+      val f: /*(*/File/*)*/ = new File("foo.txt")
     }
     """ becomes
     """
-    package renameValAnnotation
+    package rename.imported
     
-    class Annotated {
-    /*(*/@Deprecated/*)*/
-    @Override
-    val x = 57
+    import java.io.JFile
+    
+    class SUser {
+      val f: /*(*/JFile/*)*/ = new JFile("foo.txt")
     }
     """
-  } applyRefactoring(renameTo("Override"))
+  } applyRefactoring(renameTo("JFile"))
   
   @Test
-  def renameAnnotationOnImport = new FileSet {
+  def renameRenamed = new FileSet {
     """
-    package renameAnnotationOnImport
+    package rename.renamed
     
-    import javax.xml.bind.annotation./*(*/XmlRootElement/*)*/
+    import java.io.{File => JavaFile}
     
-    @XmlRootElement
-    class Element(x: String)
+    class SUser {
+      val f: /*(*/JavaFile/*)*/ = new JavaFile("foo.txt")
+    }
     """ becomes
     """
-    package renameAnnotationOnImport
+    package rename.renamed
     
-    import javax.xml.bind.annotation./*(*/Root/*)*/
+    import java.io.{File => JFile}
     
-    @XmlRootElement
-    @Root
-    class Element(x: String)
+    class SUser {
+      val f: /*(*/JFile/*)*/ = new JFile("foo.txt")
+    }
     """
-  } applyRefactoring(renameTo("Root"))
+  } applyRefactoring(renameTo("JFile"))
+  
+  @Test
+  def renameImportedAtImport = new FileSet {
+    """
+    package rename.importedAtImport
+    
+    import java.io./*(*/File/*)*/
+    
+    class SUser {
+      val f: File = new File("foo.txt")
+    }
+    """ becomes
+    """
+    package rename.importedAtImport
+    
+    import java.io./*(*/JFile/*)*/
+    
+    class SUser {
+      val f: JFile = new JFile("foo.txt")
+    }
+    """
+  } applyRefactoring(renameTo("JFile"))
+  
+  @Test
+  def renameImportedFromMultipleImports = new FileSet {
+    """
+    package rename.importedFromMultipleImports
+    
+    import java.io.{InputStream, /*(*/File/*)*/}
+    
+    class SUser {
+      val f: File = new File("foo.txt")
+    }
+    """ becomes
+    """
+    package rename.importedFromMultipleImports
+    
+    import java.io.{InputStream, /*(*/JFile/*)*/}
+    
+    class SUser {
+      val f: JFile = new JFile("foo.txt")
+    }
+    """
+  } applyRefactoring(renameTo("JFile"))
+  
+  @Test
+  def renameRenamedImportOnOriginalName = new FileSet {
+    """
+    package rename.renamedImportOnOriginalName
+    
+    import java.io.{InputStream, /*(*/File/*)*/ => JFile}
+    
+    class SUser {
+      val f: JFile = new JFile("foo.txt")
+    }
+    """ becomes
+    """
+    package rename.renamedImportOnOriginalName
+    
+    import java.io.{InputStream, /*(*/JavaFile/*)*/ => JFile}
+    
+    class SUser {
+      val f: JFile = new JFile("foo.txt")
+    }
+    """
+  } applyRefactoring(renameTo("JavaFile"))
+  
+  @Test
+  def renameRenamedImportOnNewName = new FileSet {
+    """
+    package rename.renamedImportOnNewName
+    
+    import java.io.{InputStream, File => /*(*/JFile/*)*/}
+    
+    class SUser {
+      val f: JFile = new JFile("foo.txt")
+    }
+    """ becomes
+    """
+    package rename.renamedImportOnNewName
+    
+    import java.io.{InputStream, File => /*(*/JavaFile/*)*/}
+    
+    class SUser {
+      val f: JavaFile = new JavaFile("foo.txt")
+    }
+    """
+  } applyRefactoring(renameTo("JavaFile"))
   
 }

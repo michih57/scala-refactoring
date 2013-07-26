@@ -15,11 +15,15 @@ import scala.collection.immutable.ListMap
 abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analysis.Indexes with TreeFactory with common.InteractiveScalaCompiler with PimpedTrees {
     
   import global._
-
-  case class PreparationResult(selectedTree: SymTree, hasLocalScope: Boolean)
-
+      
+  case class PreparationResult(selectedTree: SymTree, hasLocalScope: Boolean, renameOnlyImport: Boolean = false)
+  
   type RefactoringParameters = String
-
+  
+  private implicit def intToRangeInclusionTester(i: Int) = new AnyRef {
+    def includedIn(position: Position) = position.start <= i && position.end >= i
+  }
+  
   def prepare(s: Selection) = {
     s.selectedSymbolTree match {
 
@@ -29,7 +33,15 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
 
       case Some(t) =>
         val isLocalRename = (t.symbol.isPrivate || t.symbol.isLocal) && !t.symbol.hasFlag(Flags.ACCESSOR)
-        Right(PreparationResult(t, isLocalRename))
+        t match {
+          case Import(expr, selectors) =>
+            val originalNameMarked = selectors find {
+              case ImportSelector(name, namePos, rename, renamePos) => namePos.includedIn(s.pos) && name != rename
+            }
+            originalNameMarked.map(s => Right(PreparationResult(t, false, true))).getOrElse(Right(PreparationResult(t, isLocalRename)))
+          case _ => Right(PreparationResult(t, isLocalRename))
+        }
+        
       case None => Left(PreparationError("no symbol selected found"))
     }
   }
@@ -48,11 +60,17 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
     val isInTheIndex = filter {
       case t: Tree => occurences contains t
     }
-
+    
+    val renameEverything = !prepared.renameOnlyImport
+    
     val renameTree = transform {
-      case t: ImportSelectorTree =>
-        mkRenamedImportTree(t, newName)
-      case t: SymTree => 
+      case t: ImportSelectorTree => 
+        if(renameEverything) {
+          mkRenamedImportTree(t, newName)
+        } else {
+          mkRenamedImportTree(t, newName) // TODO: fix!!!
+        }
+      case t: SymTree if renameEverything => 
         val annotations = t.symbol.annotations
         val referenced = annotations.find(a => a.symbol == sym)
         val renamed = referenced match {
@@ -69,10 +87,9 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
         }
         
         renamed replaces t
-        
-      case t: TypeTree => 
+      case t: TypeTree if renameEverything => 
         mkRenamedTypeTree(t, newName, prepared.selectedTree.symbol)
-      case t @ Literal(Constant(value: TypeRef)) if isClassTag(t.value) =>
+      case t @ Literal(Constant(value: TypeRef)) if isClassTag(t.value) && renameEverything =>
         val OriginalSymbol = prepared.selectedTree.symbol
         val newType = value map {
           case TypeRef(pre, OriginalSymbol, args) =>
@@ -93,15 +110,12 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   }
   
   def findSelectedSymbol(selectedTree: SymTree, selection: Selection): Symbol = {
-    implicit def intToRangeInclusionTester(i: Int) = new AnyRef {
-      def includedIn(position: Position) = position.start <= i && position.end >= i
-    }
-
     val treeSymbol = selectedTree.symbol
     
     selectedTree match {
       case Import(expr, selectors) => {
-        val markedSelector = selectors.find{case ImportSelector(_, namePos, _, _) => namePos.includedIn(selection.pos)}
+        val markedNameSelector = selectors.find{case ImportSelector(_, namePos, _, _) => namePos.includedIn(selection.pos)}
+        val markedSelector = markedNameSelector.orElse(selectors.find{case ImportSelector(_, _, _, renamePos) => renamePos.includedIn(selection.pos)})
         markedSelector.flatMap(s => findSymbolForImportSelector(expr, s.name)).getOrElse(treeSymbol)
       }
       case _ if selection.isAnnotationSelected => selection.selectedAnnotation.getOrElse(treeSymbol)
