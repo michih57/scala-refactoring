@@ -687,23 +687,25 @@ trait ReusingPrinter extends TreePrintingTraversals with AbstractPrinter {
       val beforeTpl = l ++ modifiers ++ className ++ typeParams
       
       // FIXME: make sane...
-      val annotations = tree.symbol.annotations
-      
-      val annotationStrings = annotations map { a =>
-        val Annotation(annTpe, scalaArgs, javaArgs) = a
-        if(a.pos == NoPosition)
-          Layout("@") ++ Layout(annTpe.safeToString) ++ newline
-        else
-          EmptyFragment
-      }
-      
-      val annotationsStr = annotationStrings.foldLeft(EmptyFragment: Fragment)(_ ++ _)
-      
-      annotationsStr ++ (if(beforeTpl.asText.endsWith(" ") && template.asText.startsWith(" ")) {
+//      val annotations = tree.symbol.annotations
+//      
+//      val annotationStrings = annotations map { a =>
+//        val Annotation(annTpe, scalaArgs, javaArgs) = a
+//        if(a.pos == NoPosition)
+//          Layout("@") ++ Layout(annTpe.safeToString) ++ newline
+//        else
+//          EmptyFragment
+//      }
+//      
+//      val annotationsStr = annotationStrings.foldLeft(EmptyFragment: Fragment)(_ ++ _)
+//      
+//      annotationsStr ++ (
+      if(beforeTpl.asText.endsWith(" ") && template.asText.startsWith(" ")) {
         beforeTpl ++ Layout(template.asText.tail)
       } else {
         beforeTpl ++ template
-      } ++ r)
+      } ++ r
+//      )
     }
 
     override def ModuleDef(tree: ModuleDef, mods: List[ModifierTree], name: Name, impl: Template)(implicit ctx: PrintingContext) = {
