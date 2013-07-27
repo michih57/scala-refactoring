@@ -60,6 +60,9 @@ trait TreeFactory {
 
   def mkRenamedImportTree(t: ImportSelectorTree, name: String) =
     ImportSelectorTree(NameTree(name) setPos t.name.pos, t.rename) setPos t.pos
+    
+  def mkReRenamedImportTree(t: ImportSelectorTree, rename: String) =
+    ImportSelectorTree(t.name, NameTree(rename)) setPos t.pos
 
   def mkReturn(s: List[Symbol]): Tree = s match {
     case Nil => EmptyTree
@@ -247,6 +250,24 @@ trait TreeFactory {
     mkClass(mods withPosition (Flags.CASE, NoPosition), name, tparams, argss, body, parents, superArgs)
   }
 
+  def mkRenamedClassLiteral(
+    newName: String, 
+    origSymbol: Symbol, 
+    t: Literal, 
+    value: TypeRef) = {
+    
+    val OriginalSymbol = origSymbol
+    val newType = value map {
+      case TypeRef(pre, OriginalSymbol, args) =>
+        // Uh..
+        new Type {
+          override def safeToString: String = newName
+        }
+      case t => t
+    }
+    Literal(Constant(newType)) replaces t
+  }
+  
   implicit class CopyTypeFromOtherTree(t1: Tree) {
     def typeFrom(t2: Tree) = {
       t1.setType(t2.tpe)

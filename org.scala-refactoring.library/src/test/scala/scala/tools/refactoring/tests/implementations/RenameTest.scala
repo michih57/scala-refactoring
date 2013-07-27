@@ -1528,6 +1528,39 @@ class Blubb
   } applyRefactoring(renameTo("JFile"))
   
   @Test
+  def renamedImportOnDefinition = new FileSet {
+    """
+    package defining
+    
+    class /*(*/Old/*)*/
+    """ becomes
+    """
+    package defining
+    
+    class /*(*/New/*)*/
+    """
+    ;
+    """
+    package using
+    
+    import defining.{Old => Renamed}
+    
+    class User {
+      val x = new Renamed
+    }
+    """ becomes
+    """
+    package using
+    
+    import defining.{New => Renamed}
+    
+    class User {
+      val x = new Renamed
+    }
+    """
+  } applyRefactoring(renameTo("New"))
+  
+  @Test
   def renameRenamedImportOnOriginalName = new FileSet {
     """
     package rename.renamedImportOnOriginalName
@@ -1563,10 +1596,32 @@ class Blubb
     """
     package rename.renamedImportOnNewName
     
-    import java.io.{InputStream, File => /*(*/JavaFile/*)*/}
+    import java.io.{InputStream, File => JavaFile/*)*/}
     
     class SUser {
       val f: JavaFile = new JavaFile("foo.txt")
+    }
+    """
+  } applyRefactoring(renameTo("JavaFile"))
+  
+  @Test
+  def typeRenamedAtImport = new FileSet {
+    """
+    package rename.typeRenamedAtImport
+    
+    import java.io.{/*(*/File/*)*/ => JFile}
+    
+    class C {
+      type F = JFile
+    }
+    """ becomes
+    """
+    package rename.typeRenamedAtImport
+    
+    import java.io.{/*(*/JavaFile/*)*/ => JFile}
+    
+    class C {
+      type F = JFile
     }
     """
   } applyRefactoring(renameTo("JavaFile"))
