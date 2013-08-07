@@ -77,7 +77,49 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
     """
   } applyRefactoring(renameTo("NEW_VALUE"))
   
+  @Test
+  def renameStaticJavaMethod = new FileSet {
+    """
+    package rename.staticJavaMethod
+    
+    import java.util.Collections
+    
+    class C {
+      val e = Collections./*(*/emptyList/*)*/()
+    }
+    """ becomes
+    """
+    package rename.staticJavaMethod
+    
+    import java.util.Collections
+    
+    class C {
+      val e = Collections./*(*/jNil/*)*/()
+    }
+    """
+  } applyRefactoring(renameTo("jNil"))
   
+  @Test
+  def renameImportedStaticJavaMethod = new FileSet {
+    """
+    package rename.importedStaticJavaMethod
+    
+    import java.util.Collections.emptyList
+    
+    class C {
+      val e = /*(*/emptyList/*)*/()
+    }
+    """ becomes
+    """
+    package rename.importedStaticJavaMethod
+    
+    import java.util.Collections.jNil
+    
+    class C {
+      val e = /*(*/jNil/*)*/()
+    }
+    """
+  } applyRefactoring(renameTo("jNil"))
   
   @Test
 //  @Ignore
@@ -91,8 +133,7 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
     """
     package renameAnnotation
     
-    /*(*/@Deprecated/*)*/
-    @Override
+    /*(*/@Override/*)*/
     class Annotated
     """
   } applyRefactoring(renameTo("Override"))
@@ -113,8 +154,7 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
     
     import javax.xml.bind.annotation.Root
     
-    /*(*/@XmlRootElement/*)*/
-    @Root
+    /*(*/@Root/*)*/
     class Element(x: String)
     """
   } applyRefactoring(renameTo("Root"))
@@ -134,8 +174,7 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
     package renameValAnnotation
     
     class Annotated {
-    /*(*/@Deprecated/*)*/
-    @Override
+    /*(*/@Override/*)*/
     val x = 57
     }
     """
@@ -157,7 +196,6 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
     
     import javax.xml.bind.annotation./*(*/Root/*)*/
     
-    @XmlRootElement
     @Root
     class Element(x: String)
     """

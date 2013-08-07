@@ -16,7 +16,6 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
     
   import global._
       
-//  case class PreparationResult(selectedTree: SymTree, hasLocalScope: Boolean, renameOnlyImport: Boolean = false, isRenamedAtImport: Boolean = false)
   case class PreparationResult(renameProcessor: RenameProcessor, hasLocalScope: Boolean)
   
   type RefactoringParameters = String
@@ -26,6 +25,15 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   }
   
   def prepare(s: Selection) = {
+    def importProcessorForSymTree(t: SymTree, symbol: Symbol): Option[RenameProcessor] = t match {
+      case Import(expr, selectors) =>
+        val markedRename = selectors find {
+          case ImportSelector(name, _, rename, renamePos) => renamePos.includedIn(s.pos) && name != rename
+        }
+        markedRename.map(marked => new RenamedImportProcessor(t, symbol))
+      case _ => None
+    }
+    
     val selectedTree = s.selectedSymbolTree
     val selectedTreeAndSymbol = selectedTree.map(t => (t, findSelectedSymbol(t, s)))
     selectedTreeAndSymbol match {
@@ -37,15 +45,13 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
         val processor = new RenamedImportProcessor(t, symbol)
         Right(PreparationResult(processor, true))
       case Some((t, symbol)) =>
-        val isLocalRename = (t.symbol.isPrivate || t.symbol.isLocal) && !t.symbol.hasFlag(Flags.ACCESSOR)
-        val defaultProcessor = new DefaultProcessor(t, symbol)
-        val processor = t match {
-          case Import(expr, selectors) =>
-            val renameMarked = selectors find {
-              case ImportSelector(name, _, rename, renamePos) => renamePos.includedIn(s.pos) && name != rename
-            }
-            renameMarked.map(marked => new RenamedImportProcessor(t, symbol)).getOrElse(defaultProcessor)
-          case _ => defaultProcessor
+        val importProcessorOpt = importProcessorForSymTree(t, symbol)
+        val (processor, isLocalRename) = importProcessorOpt match {
+          case Some(importProcessor) => (importProcessor, true)
+          case _ => 
+            val defaultProcessor = new DefaultProcessor(t, symbol)
+            val defaultIsLocalRename = (t.symbol.isPrivate || t.symbol.isLocal) && !t.symbol.hasFlag(Flags.ACCESSOR)
+            (defaultProcessor, defaultIsLocalRename)
         }
         Right(PreparationResult(processor, isLocalRename))        
       case None => Left(PreparationError("no symbol selected found"))
@@ -76,10 +82,15 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   trait RenameProcessor {
     val selectedTree: SymTree
     val selectedSymbol: Symbol
-    val renameImportSelector = mkRenamedImportTree _
-    val renameSymTree = mkRenamedSymTree _
-    val renameTypeTree = mkRenamedTypeTree _
-    val renameClassLiteral = mkRenamedClassLiteral _
+    
+    def renameImportSelector(t: ImportSelectorTree, newName: String) = mkRenamedImportTree(t, newName)
+    
+    def renameSymTree(t: SymTree, newName: String) = mkRenamedSymTree(t, newName)
+    
+    def renameTypeTree(t: TypeTree, newName: String, origSymbol: Symbol) = mkRenamedTypeTree(t, newName, origSymbol)
+    
+    def renameClassLiteral(newName: String, origSymbol: Symbol, t: Literal, value: TypeRef) = 
+      mkRenamedClassLiteral(newName, origSymbol, t, value)
 
     def perform(newName: RefactoringParameters): List[Tree] = {
       val sym = selectedSymbol
@@ -111,8 +122,8 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   }
   
   class DefaultProcessor(override val selectedTree: SymTree, override val selectedSymbol: Symbol) extends RenameProcessor {
-    override val renameSymTree = (t: SymTree, newName: String) => t match {
-      // TODO: is there a cleaner way to check if r is referring to
+    override def renameSymTree(t: SymTree, newName: String) =  t match {
+      // TODO @Mirko: is there a cleaner way to check if r is referring to
       // a symbol that has been renamed at an import?
       case r: RefTree if r.name.toString.trim != selectedSymbol.name.toString.trim => 
         t
@@ -122,26 +133,25 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   }
   
   class RenamedImportProcessor(override val selectedTree: SymTree, override val selectedSymbol: Symbol) extends RenameProcessor {
-    override val renameImportSelector = mkReRenamedImportTree _
+    override def renameImportSelector(t: ImportSelectorTree, newName: String) = mkReRenamedImportTree(t, newName)
   }
   
   class AnnotationProcessor(override val selectedTree: SymTree, override val selectedSymbol: Symbol) extends RenameProcessor {
-    override val renameSymTree = (t: SymTree, newName: String) => {
+    override def renameSymTree(t: SymTree, newName: String) = {
       val sym = selectedSymbol
       val annotations = t.symbol.annotations
       val referenced = annotations.find(a => a.symbol == sym)
       
-      // TODO make actually work (using t.duplicate doesn't seem to be the solution)
+      // TODO @Mirko: this doesn't print right (reusing printer ignores changes annotations)
       val renamed = referenced match {
         case Some(ann) =>
-          val duplicate = t.duplicate
-          duplicate.symbol.removeAnnotation(sym)
+          t.symbol.removeAnnotation(sym)
           val tpe = new Type {
             override def safeToString = newName
           }
           val renamedAnn = Annotation(tpe, ann.scalaArgs, ann.javaArgs) setPos NoPosition
-          duplicate.symbol.addAnnotation(renamedAnn)
-          duplicate
+          t.symbol.addAnnotation(renamedAnn)
+          t
         case None => mkRenamedSymTree(t, newName) setPos (t.pos withStart t.pos.start)
       }
 
