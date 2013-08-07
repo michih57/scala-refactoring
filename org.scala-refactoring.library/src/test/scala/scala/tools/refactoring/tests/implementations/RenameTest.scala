@@ -1585,6 +1585,72 @@ class Blubb
   } applyRefactoring(renameTo("JavaFile"))
   
   @Test
+  @Ignore // TODO Mirko: is there a way to test for hasLocalScope (or build index only for file with selection)?
+  def renameRenamedImportWithDefining = new FileSet {
+    """
+    package rename.renameRenamedImportWithDefining.defining
+    
+    class Defining
+    """ becomes
+    """
+    package rename.renameRenamedImportWithDefining.defining
+    
+    class Defining
+    """
+    """
+    package rename.renameRenamedImportWithDefining
+    
+    import rename.renameRenamedImportWithDefining.defining.{Defining => D}
+    
+    class Using {
+      val d = new /*(*/D/*)*/() 
+    }
+    """ becomes
+    """
+    package rename.renameRenamedImportWithDefining
+    
+    import rename.renameRenamedImportWithDefining.defining.{Defining => XXX}
+    
+    class Using {
+      val d = new /*(*/XXX/*)*/() 
+    }
+    """
+  } applyRefactoring(renameTo("XXX"))
+  
+  @Test
+  @Ignore // TODO Mirko: is there a way to test for hasLocalScope (or build index only for file with selection)?
+  def renameRenamedImportWithDefiningAtImport = new FileSet {
+    """
+    package rename.renameRenamedImportWithDefiningAtImport.defining
+    
+    class Defining
+    """ becomes
+    """
+    package rename.renameRenamedImportWithDefiningAtImport.defining
+    
+    class Defining
+    """
+    """
+    package rename.renameRenamedImportWithDefiningAtImport
+    
+    import rename.renameRenamedImportWithDefiningAtImport.defining.{Defining => /*(*/D/*)*/}
+    
+    class Using {
+      val d = new D()
+    }
+    """ becomes
+    """
+    package rename.renameRenamedImportWithDefining
+    
+    import rename.renameRenamedImportWithDefining.defining.{Defining => /*(*/XXX/*)*/}
+    
+    class Using {
+      val d = new XXX
+    }
+    """
+  } applyRefactoring(renameTo("XXX"))
+  
+  @Test
   def typeRenamedAtImport = new FileSet {
     """
     package rename.typeRenamedAtImport
