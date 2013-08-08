@@ -21,7 +21,7 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   
   type RefactoringParameters = String
   
-  private implicit def intToRangeInclusionTester(i: Int) = new AnyRef {
+  protected implicit def intToRangeInclusionTester(i: Int) = new AnyRef {
     def includedIn(position: Position) = position.start <= i && position.end >= i
   }
   
@@ -84,6 +84,10 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
     val selectedTree: SymTree
     val selectedSymbol: Symbol
     
+    def treesToRename = {
+      index.occurences(selectedSymbol)
+    }
+    
     def renameImportSelector(t: ImportSelectorTree, newName: String) = mkRenamedImportTree(t, newName)
     
     def renameSymTree(t: SymTree, newName: String) = mkRenamedSymTree(t, newName)
@@ -96,7 +100,7 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
     def perform(newName: RefactoringParameters): List[Tree] = {
       val sym = selectedSymbol
       
-      val occurences = index.occurences(sym)
+      val occurences = treesToRename
 
       occurences foreach (s => trace("Symbol is referenced at %s (%s:%s, %s:%s)",
         s, s.pos.source.file.name, s.pos.line, s.pos.start, s.pos.end))
