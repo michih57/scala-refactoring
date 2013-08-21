@@ -53,47 +53,53 @@ class RenameImportTest extends TestHelper with TestRefactoring {
     """
     package renameImport.secondFromMultipleSelectors
     
-    import java.io.{InputStream, /*(*/OutputStream/*)*/}
+    import java.io.{InputStream, /*(*/OutputStream/*)*/, File}
     
     case class IO(in: InputStream, out: OutputStream)
     """ becomes
     """
     package renameImport.secondFromMultipleSelectors
     
-    import java.io.{InputStream, /*(*/OutputStream/*)*/ => OS}
+    import java.io.{InputStream, /*(*/OutputStream/*)*/ => OS, File}
     
     case class IO(in: InputStream, out: OS)
     """ 
   } applyRefactoring(renameImportTo("OS"))
   
-  @Test
-  def atUsage = new FileSet {
+  @Test(expected = classOf[PreparationException])
+  def failOnAlreadyRenamed = new FileSet {
     """
-    package renameImport.atUsage
+    package renameImport.failOnAlreadyRenamed
     
-    import java.io.{InputStream, OutputStream}
+    import java.io.{/*(*/InputStream/*)*/ => IS}
     
-    case class IO(in: InputStream, out: /*(*/OutputStream/*)*/)
+    class C(val in: IS)
     """ becomes
     """
-    package renameImport.atUsage
+    package renameImport.failOnAlreadyRenamed
     
-    import java.io.{InputStream, OutputStream => OS}
+    import java.io.{/*(*/InputStream/*)*/ => IS}
     
-    case class IO(in: InputStream, out: /*(*/OS/*)*/)
+    class C(val in: IS)
     """
-  } applyRefactoring(renameImportTo("OS"))
+  } applyRefactoring(renameImportTo("JInputStream"))
   
-  @Test
-  def dummy = {
-    val tree = treeFrom(
+  @Test(expected = classOf[PreparationException])
+  def failOnNonImport = new FileSet {
     """
-    import java.io.{InputStream, OutputStream}
+    package renameImport.failOnNonImport
     
-    case class IO(in: InputStream, out: /*(*/OutputStream/*)*/)
-    """)
+    import java.io.{InputStream}
     
-    println(tree)
-  }
+    class C(val in: InputStream)
+    """ becomes
+    """
+    package renameImport.failOnNonImport
+    
+    import java.io.{InputStream}
+    
+    class C(val in: InputStream)
+    """
+  } applyRefactoring(renameImportTo("IS"))
   
 }

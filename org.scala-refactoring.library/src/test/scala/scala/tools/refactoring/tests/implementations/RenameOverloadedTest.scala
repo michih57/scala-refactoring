@@ -13,9 +13,9 @@ class RenameOverloadedTest extends TestHelper with TestRefactoring {
   }.changes
   
   @Test
-  def simpleOverloaded = new FileSet {
+  def inClass = new FileSet {
     """
-    package renameOverloaded.simpleOverloaded
+    package renameOverloaded.inClass
     
     class O {
       def /*(*/foo/*)*/() = 57
@@ -23,7 +23,7 @@ class RenameOverloadedTest extends TestHelper with TestRefactoring {
     }
     """ becomes
     """
-    package renameOverloaded.simpleOverloaded
+    package renameOverloaded.inClass
     
     class O {
       def /*(*/bar/*)*/() = 57
@@ -31,5 +31,133 @@ class RenameOverloadedTest extends TestHelper with TestRefactoring {
     }
     """
   } applyRefactoring(renameOverloadedTo("bar"))
+  
+  @Test
+  def inObject = new FileSet {
+    """
+    package renameOverloaded.inObject
+    
+    object O {
+      def /*(*/m/*)*/(i: Int) = 13
+      def m(s: String) = 45
+    }
+    """ becomes
+    """
+    package renameOverloaded.inObject
+    
+    object O {
+      def /*(*/method/*)*/(i: Int) = 13
+      def method(s: String) = 45
+    }
+    """
+  } applyRefactoring(renameOverloadedTo("method"))
+  
+  @Test
+  def inTrait = new FileSet {
+    """
+    package renameOverloaded.inTrait
+    
+    trait T {
+      def /*(*/m/*)*/(i: Int) = 13
+      def m(s: String) = 45
+    }
+    """ becomes
+    """
+    package renameOverloaded.inTrait
+    
+    trait T {
+      def /*(*/method/*)*/(i: Int) = 13
+      def method(s: String) = 45
+    }
+    """
+  } applyRefactoring(renameOverloadedTo("method"))
+  
+  @Test
+  def inheritance = new FileSet {
+    """
+    package renameOverloaded.inheritance
+    
+    class Parent {
+      def /*(*/m/*)*/(i: Int) = 13
+      def m(s: String) = 45
+    }
+    
+    class Child extends Parent {
+      override def m(i: Int) = {
+        val double = 2*i
+        double*double
+      }
+    }
+    """ becomes
+    """
+    package renameOverloaded.inheritance
+    
+    class Parent {
+      def /*(*/method/*)*/(i: Int) = 13
+      def method(s: String) = 45
+    }
+    
+    class Child extends Parent {
+      override def method(i: Int) = {
+        val double = 2*i
+        double*double
+      }
+    }
+    """
+  } applyRefactoring(renameOverloadedTo("method"))
+  
+  @Test
+  def withVal = new FileSet {
+    """
+    package renameOverloaded.withVal
+    
+    class C {
+      def /*(*/m/*)*/(i: Int) = 57
+      val m = "booyah" //FIXME
+    }
+    """ becomes
+    """
+    package renameOverloaded.withVal
+    
+    class C {
+      def /*(*/method/*)*/(i: Int) = 57
+      val methodethod = "booyah" //FIXME
+    }
+    """
+  } applyRefactoring(renameOverloadedTo("method"))
+  
+  @Test
+  def inheritanceWithVal = new FileSet {
+    """
+    package renameOverloaded.inheritanceWithVal
+    
+    class Parent {
+      def bar(i: Int) = {
+        2*i
+      }
+    
+      val bar: String => Int = (s: String) => s.length
+    }
+    
+    class Child extends Parent {
+      override val /*(*/bar/*)*/: String => Int = (s: String) => 45
+    }
+    """ becomes
+    """
+    package renameOverloaded.inheritanceWithVal
+    
+    class Parent {
+      def foo(i: Int) = {
+        2*i
+      }
+    
+      val foo: String => Int = (s: String) => s.length
+    }
+    
+    class Child extends Parent {
+      override val /*(*/foo/*)*/: String => Int = (s: String) => 45
+    }
+    """
+  } applyRefactoring(renameOverloadedTo("bar")) // TODO: get to bottom of assertion failure
   
 }

@@ -15,7 +15,7 @@ abstract class RenameImport extends Rename {
     val selectedTree = s.selectedSymbolTree
     val prepared = selectedTree flatMap { st => st match {
         case Import(expr, selectors) => 
-          val selector = selectors.find(sel => sel.namePos.includedIn(s.pos))
+          val selector = selectors.find(sel => sel.namePos.includedIn(s.pos) && sel.name == sel.rename)// FIXME: must not have a rename
           val selectorSymbol = selector flatMap {
             s => findSymbolForImportSelector(expr, s.name)
           }
@@ -24,7 +24,7 @@ abstract class RenameImport extends Rename {
       }
     }
     val preparationResult = prepared.map(PreparationResult(_, true))
-    preparationResult.toRight(PreparationError("No selected import selector found."))
+    preparationResult.toRight(PreparationError("No selected import selector without existing rename found."))
   }
   
 }

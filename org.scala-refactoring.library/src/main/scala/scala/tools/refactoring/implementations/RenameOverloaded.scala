@@ -22,16 +22,34 @@ abstract class RenameOverloaded extends Rename {
     extends DefaultProcessor(selectedTree, selectedSymbol) {
     
     override def treesToRename = {
-      val owner = index.declaration(selectedSymbol).map(_.symbol.ownerChain).getOrElse(Nil).filter(_.isType).headOption
-      val ownerTree = owner.flatMap(index.declaration(_)).map(_.asInstanceOf[ClassDef])
-      val definitions = ownerTree.toList.flatMap { o =>
-        o.impl.body.collect{case d: DefDef if d.symbol.nameString == selectedSymbol.nameString => d.symbol}
+      println(s"method name: ${selectedSymbol.nameString}")
+      
+      val rawOwner = index.declaration(selectedSymbol).map(_.symbol.ownerChain).getOrElse(Nil).filter(_.isType).headOption
+      val owner = rawOwner.map(o => if(o.isModuleClass) o.module else o)
+      val parents = owner.toList.flatMap(o => o::o.parentSymbols)
+      println(s"parents: $parents")
+      val ownerTrees = parents.flatMap(index.declaration(_))
+      val definitions = ownerTrees flatMap {
+        ot => ot match {
+          case cd: ClassDef => 
+            println("in class def")
+            cd.impl.body.collect{
+              case d: DefDef if d.symbol.nameString == selectedSymbol.nameString => d.symbol
+              case d: DefDef => println(s"defdef symbol namestring: ${d.symbol.nameString}"); d.symbol
+            }
+          case md: ModuleDef =>
+            println("in module def")
+            md.impl.body.collect{case d: DefDef if d.symbol.nameString == selectedSymbol.nameString => d.symbol}
+          case _ => 
+            println(s"not expected to be here, type: ${ot.getClass()}")
+            Nil
+        }
       }
       
-      
       println(s"""owner: $owner""")
+      println(s"owner tree: ${ownerTrees}")
       println(s"""definitions: $definitions""")
-      definitions.flatMap(index.occurences(_))   
+      definitions.flatMap(index.occurences(_))
     }
     
   }
