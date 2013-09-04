@@ -17,10 +17,10 @@ class MoveClassTest extends TestHelper with TestRefactoring {
     }
   }
 
-  private def moveTo(target: String)(pro: FileSet) = {
+  private def moveTo(target: String, ignorePackages: List[String] = Nil)(pro: FileSet) = {
     val testRefactoring = createRefactoring(pro)
     import testRefactoring._
-    performRefactoring(refactoring.RefactoringParameters(target, preparationResult.right.get))
+    performRefactoring(refactoring.RefactoringParameters(target, preparationResult.right.get, ignorePackages))
   }
 
   @Test
@@ -1052,4 +1052,107 @@ object /*(*/Arith/*)*/ extends scala.util.parsing.combinator.JavaTokenParsers {
 }
     """
   } applyRefactoring(moveTo("x.y"))
+  
+  @Test
+  def moveBetweenPackagesWithUsageInOtherPackage = new FileSet {
+    """
+      package a.b.c
+      class /*(*/ToMove/*)*/
+    """ becomes
+    """
+      package x.y
+      class /*(*/ToMove/*)*/
+    """
+    """
+      package other
+    
+      import a.b.c.ToMove
+    
+      class User {
+        val moved = new ToMove
+      }
+    """ becomes
+    """
+      package other
+    
+      import x.y.ToMove
+    
+      class User {
+        val moved = new ToMove
+      }
+    """
+  } applyRefactoring(moveTo("x.y"))
+  
+  @Test
+  def ignoreSourcePackageForMoved = new FileSet {
+    """
+    package a.b
+    class /*(*/ToMove/*)*/ {
+      val s = new Staying
+    }
+    class Staying
+    """ becomes
+    """
+    package a.b
+    class Staying
+    """
+    NewFile becomes
+    """
+    package x.y
+    class /*(*/ToMove/*)*/ {
+      val s = new Staying
+    }
+    """
+  } applyRefactoring(moveTo("x.y", List("a.b")))
+  
+  @Test
+  def ignoreTargetPackageForStaying = new FileSet {
+    """
+    package a.b
+    class /*(*/ToMove/*)*/
+    class Staying {
+      val t = new ToMove
+    }
+    """ becomes
+    """
+    package a.b
+    class Staying {
+      val t = new ToMove
+    }
+    """
+    NewFile becomes
+    """
+    package x.y
+    class /*(*/ToMove/*)*/
+    """
+  } applyRefactoring(moveTo("x.y", List("a.b")))
+  
+  @Test
+  def ignoreCommonPackage = new FileSet {
+    """
+    package a.b
+    class Staying {
+      val t = new ToMove
+    }
+    """ becomes
+    """
+    package a.b
+    class Staying {
+      val t = new ToMove
+    }
+    """
+    """
+    package a.b
+    class /*(*/ToMove/*)*/ {
+      val s = new Staying
+    }
+    """ becomes
+    """
+    package x.y
+    class /*(*/ToMove/*)*/ {
+      val s = new Staying
+    }
+    """
+  } applyRefactoring(moveTo("x.y", List("a.b")))
+
 }

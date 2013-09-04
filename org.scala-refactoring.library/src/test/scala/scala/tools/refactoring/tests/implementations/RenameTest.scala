@@ -1692,4 +1692,32 @@ class Blubb
     """
   } applyRefactoring(renameTo("JavaFile"))
   
+  @Test
+  def innerPackageDotNotation = new FileSet {
+    """
+    package rename./*(*/inner/*)*/.Package.Dot.Notation
+    
+    class C
+    """ becomes
+    """
+    package rename./*(*/nested/*)*/.Package.Dot.Notation
+    
+    class C
+    """
+  } applyRefactoring(renameTo("nested"))
+  
+  @Test
+  def fullPackagePath = new FileSet {
+    """
+    package /*(*/rename.full.pkg.path/*)*/
+    
+    class C
+    """ becomes
+    """
+    package /*(*/complete.path.renamed
+    
+    class C
+    """
+  } applyRefactoring(renameTo("complete.path.renamed"))
+  
 }

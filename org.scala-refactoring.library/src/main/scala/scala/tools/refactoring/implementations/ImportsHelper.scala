@@ -8,8 +8,8 @@ trait ImportsHelper {
   self: common.InteractiveScalaCompiler with analysis.Indexes with transformation.Transformations with transformation.TreeTransformations with common.PimpedTrees =>
 
   import global._
-
-  def addRequiredImports(importsUser: Option[Tree], targetPackageName: Option[String]) = traverseAndTransformAll {
+  
+  def addRequiredImports(importsUser: Option[Tree], targetPackageName: Option[String], ignoredPackages: List[String] = Nil) = traverseAndTransformAll {
     locatePackageLevelImports &> transformation[(PackageDef, List[Import], List[Tree]), Tree] {
       case (pkg, existingImports, rest) => {
         val user = importsUser getOrElse pkg
@@ -31,14 +31,18 @@ trait ImportsHelper {
                 case Select(qualifier, name) =>
 
                   val pkgString = importAsString(qualifier)
-
-                  trees exists {
-                    case Import(expr, selectors) =>
+                  
+                  val importExists = trees exists { 
+                    case Import(expr, selectors) => 
                       val pkgName = importAsString(expr)
                       selectors exists { selector =>
                         pkgName == pkgString && (selector.name == nme.WILDCARD || name.toString == selector.name.toString)
                       }
                   }
+                  
+                  val importOfIgnoredPkg = ignoredPackages.exists(_ == pkgString)
+                  
+                  importExists || importOfIgnoredPkg
               }
 
               val existingStillNeededImports = new RecomputeAndModifyUnused(externalDependencies)(trees)

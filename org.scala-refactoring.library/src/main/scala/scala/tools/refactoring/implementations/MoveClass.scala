@@ -1,15 +1,13 @@
 package scala.tools.refactoring
 package implementations
 
-import scala.tools.refactoring.analysis.CompilationUnitDependencies
-import scala.tools.refactoring.common.TreeExtractors
-import scala.tools.refactoring.common.NewFileChange
-import scala.tools.refactoring.common.InteractiveScalaCompiler
-import scala.tools.refactoring.common.Change
-import scala.tools.refactoring.transformation.TreeFactory
-import scala.collection.mutable.ListBuffer
-import scala.tools.refactoring.common.TextChange
 import scala.reflect.internal.util.SourceFile
+import scala.tools.refactoring.MultiStageRefactoring
+import scala.tools.refactoring.analysis.CompilationUnitDependencies
+import scala.tools.refactoring.common.Change
+import scala.tools.refactoring.common.InteractiveScalaCompiler
+import scala.tools.refactoring.common.TreeExtractors
+import scala.tools.refactoring.transformation.TreeFactory
 
 abstract class MoveClass extends MultiStageRefactoring with TreeFactory with analysis.Indexes with TreeExtractors with InteractiveScalaCompiler with CompilationUnitDependencies with ImportsHelper {
 
@@ -26,7 +24,7 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
    * the user has the option of ignoring the selected ImplDef, therefore we
    * take a copy of the PreparationResult as a parameter.
    * */
-  case class RefactoringParameters(packageName: String, moveSingleImpl: PreparationResult)
+  case class RefactoringParameters(packageName: String, moveSingleImpl: PreparationResult, ignorePackages: List[String] = Nil)
 
   /**
    * We can only move classes from files that contain a single package.
@@ -97,7 +95,9 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
     val ancestors = toMove.toList flatMap ancestorSymbols
 
     trace("Selected ImplDef: %s, in package %s, move to %s", toMove map(_.nameString) getOrElse "ALL", ancestors map (_.nameString) mkString ("."), parameters)
-
+    
+    trace(s"skikkelig")
+    
     /*
      * We need to handle two different cases:
      *
@@ -117,8 +117,9 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
         val changes = transformFile(selection.file, moveClass)
         changes map (_.toNewFile(parameters.packageName))
       }
+      val oldFileChanges = removeClassFromOldFileAndAddImportToNewIfNecessary(selection, parameters)
 
-      newFileChanges ++ removeClassFromOldFileAndAddImportToNewIfNecessary(selection, parameters)
+      newFileChanges ++ oldFileChanges
 
     } else {
       val stats = statsToMove(selection, parameters)
@@ -130,13 +131,13 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
      * We need to adapt the imports of all the files that reference one of the moved classes.
      * This include imports to the moved classes and fully qualified names.
      * */
-    val otherFiles = adaptDependentFiles(selection, toMove, parameters.packageName)
-
+    val otherFiles = adaptDependentFiles(selection, toMove, parameters.packageName, parameters.ignorePackages)
+    
     Right(movedClassChanges ++ otherFiles)
   }
 
-  private def addRequiredImportsForExtractedClass(toMove: Tree, targetPackageName: String) = {
-    addRequiredImports(Some(toMove), Some(targetPackageName))
+  private def addRequiredImportsForExtractedClass(toMove: Tree, targetPackageName: String, ignoredPackages: List[String]) = {
+    addRequiredImports(Some(toMove), Some(targetPackageName), ignoredPackages)
   }
 
   /**
@@ -180,8 +181,8 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
         }
     }
 
-    val insertImports = addRequiredImportsForExtractedClass(importsFor, parameters.packageName)
-
+    val insertImports = addRequiredImportsForExtractedClass(importsFor, parameters.packageName, parameters.ignorePackages)
+    
     traverseAndTransformAll(findFirstPackageToRename &> changePackageDeclaration) &> insertImports
   }
 
@@ -196,16 +197,29 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
 
     val referencesInOriginalFile = referencesToMovedClass.filter(_.pos.source.file == selection.file)
 
-    def hasRelativeReferenceToMovedClass = referencesInOriginalFile.exists {
-      // TODO check if the complete qualifier has a range!
-      case Select(qual, _) if qual.pos.isRange => false
-      // check the position to exclude self references
-      case t: RefTree if toMove.pos.includes(t.pos) => false
-      case _ => true
+    def hasRelativeReferenceToMovedClass = {
+      val relativeReferences = referencesInOriginalFile.filter {
+        // TODO check if the complete qualifier has a range!
+        case Select(qual, _) if qual.pos.isRange => false
+        // check the position to exclude self references
+        case t: RefTree if toMove.pos.includes(t.pos) => false
+        case _ => true
+      }
+      
+      val nonIgnoredRelativeReferences = relativeReferences filter { ref =>
+        val pkgName = owningPackage(ref)
+        val isOnIgnoreList = pkgName.map(nme => parameters.ignorePackages.exists(iPkgName => iPkgName == nme))
+        isOnIgnoreList.map(b => !b).getOrElse(true)
+      }
+      
+      !nonIgnoredRelativeReferences.isEmpty
     }
+      
 
     val removeClassFromOldFile = replaceTree(toMove, EmptyTree)
 
+    
+    
     val trans = if(hasRelativeReferenceToMovedClass) {
       removeClassFromOldFile &> addImportTransformation(List(parameters.packageName + "." + toMove.nameString))
     } else {
@@ -232,7 +246,7 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
     parameters.moveSingleImpl.isDefined && topLevelImplDefs(selection).size > 1
   }
 
-  private def adaptDependentFiles(selection: Selection, toMove: Option[ImplDef], newFullPackageName: String): Iterable[Change] = {
+  private def adaptDependentFiles(selection: Selection, toMove: Option[ImplDef], newFullPackageName: String, ignoredPackages: List[String]): Iterable[Change] = {
 
     def referencesToMovedClasses(moved: List[ImplDef]): Map[SourceFile, List[(ImplDef, List[Tree])]] = {
 
@@ -263,7 +277,7 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
           (sourceFile, implDef, references)
       }
     }
-
+    
     referencesFromOtherFiles flatMap {
       case (sourceFile, implDef, references) =>
 
@@ -277,61 +291,69 @@ abstract class MoveClass extends MultiStageRefactoring with TreeFactory with ana
           case t: RefTree => true
         }
 
-        if(!alreadyHasImportSelector && hasReferenceWithoutFullName) {
-          val addImport = new AddImportStatement { val global = MoveClass.this.global }
-          addImport.addImport(sourceFile.file, newFullPackageName + "." + referencedName)
+        val owningPackages = references.flatMap(ref => index.rootsOf(List(ref))).flatMap(owningPackage).toSet
+        val notIgnoredOwningPackages = owningPackages.diff(ignoredPackages.toSet)
+        if(notIgnoredOwningPackages.isEmpty) {
+          Nil
         } else {
+          if (!alreadyHasImportSelector && hasReferenceWithoutFullName) {
+            val addImport = new AddImportStatement { val global = MoveClass.this.global }
+            addImport.addImport(sourceFile.file, newFullPackageName + "." + referencedName)
+          } else {
 
-          def hasMovedName(s: ImportSelector) = s.name.toString == referencedName
+            def hasMovedName(s: ImportSelector) = s.name.toString == referencedName
 
-          val adaptImports = transform {
+            val adaptImports = transform {
 
-            /*
+              /*
              * The import has a single selector that imports the class we move.
              * */
-            case pkg @ PackageDef(_, stats) if stats.exists {
-              case Import(_, selector :: Nil) => hasMovedName(selector)
-              case _ => false
-            } =>
-              /*
+              case pkg @ PackageDef(_, stats) if stats.exists {
+                case Import(_, selector :: Nil) => hasMovedName(selector)
+                case _ => false
+              } =>
+                /*
                * We are lucky and can replace the import expression.
                * */
-              pkg copy (stats = stats map {
-                case imp @ Import(_, selector :: Nil) if hasMovedName(selector) =>
-                  imp copy (expr = Ident(newFullPackageName)) replaces imp
-                case stmt => stmt
-              }) copyAttrs pkg
+                pkg copy (stats = stats map {
+                  case imp @ Import(_, selector :: Nil) if hasMovedName(selector) =>
+                    imp copy (expr = Ident(newFullPackageName)) replaces imp
+                  case stmt => stmt
+                }) copyAttrs pkg
 
-            /*
+              /*
              * The import has multiple selectors with one of them being the class we move.
              * */
-            case pkg @ PackageDef(_, stats) if stats.exists {
-              case Import(_, selectors) => selectors.exists(hasMovedName)
-              case _ => false
-            } =>
-              /*
+              case pkg @ PackageDef(_, stats) if stats.exists {
+                case Import(_, selectors) => selectors.exists(hasMovedName)
+                case _ => false
+              } =>
+                /*
                * Remove the obsolete selector and add a new import with the new package name.
                * */
-              pkg copy (stats = stats flatMap {
-                case imp @ Import(_, selectors) if selectors.exists(hasMovedName) =>
-                  val selector = selectors.find(hasMovedName).get
-                  List(
+                pkg copy (stats = stats flatMap {
+                  case imp @ Import(_, selectors) if selectors.exists(hasMovedName) =>
+                    val selector = selectors.find(hasMovedName).get
+                    List(
                       imp copy (selectors = selectors.filterNot(_ == selector)) replaces imp,
                       Import(Ident(newFullPackageName), selector :: Nil))
-                case stmt =>
-                  List(stmt)
-              }) copyAttrs pkg
+                  case stmt =>
+                    List(stmt)
+                }) copyAttrs pkg
 
-            case s @ Select(qualifier, _) if references.contains(s) &&
+              case s @ Select(qualifier, _) if references.contains(s) &&
                 qualifier.pos.isRange /* qualifier is visible in the source code */ =>
-              s copy (qualifier = Ident(newFullPackageName)) replaces s
+                s copy (qualifier = Ident(newFullPackageName)) replaces s
 
-            case ref: Ident if references.contains(ref) && !alreadyHasImportSelector =>
-              Ident(newFullPackageName + "." + ref.name)
+              case ref: Ident if references.contains(ref) && !alreadyHasImportSelector =>
+                Ident(newFullPackageName + "." + ref.name)
+            }
+
+            transformFile(sourceFile.file, traverseAndTransformAll(adaptImports))
           }
-
-          transformFile(sourceFile.file, traverseAndTransformAll(adaptImports))
         }
+        
+
     }
   }
 }

@@ -1073,7 +1073,14 @@ trait PimpedTrees {
   def ancestorSymbols(t: Tree): List[Symbol] = {
     t.symbol.ownerChain.takeWhile(_.nameString != nme.ROOT.toString).filterNot(_.isPackageObjectClass).reverse
   }
-
+  
+  def owningPackage(t: Tree): Option[String] = {
+    if(t.hasSymbol)
+      Some(ancestorSymbols(t).filter(_.isPackage).map(_.nameString).mkString("."))
+    else
+      None
+  }
+  
   /**
    * @return Returns the most specific package declaration in the compilation
    * unit. For example, given the following declaration:
