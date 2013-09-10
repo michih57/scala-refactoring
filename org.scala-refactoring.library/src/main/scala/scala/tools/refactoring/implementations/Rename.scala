@@ -28,10 +28,11 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   def prepare(s: Selection) = {
     def importProcessorForSymTree(t: SymTree, symbol: Symbol): Option[RenameProcessor] = t match {
       case Import(expr, selectors) =>
-        val markedRename = selectors find {
-          case ImportSelector(name, _, rename, renamePos) => renamePos.includedIn(s.pos) && name != rename
-        }
-        markedRename.map(marked => new RenamedImportProcessor(t, symbol))
+        val selectedRename = selectors.collect {
+          case is @ ImportSelector(name, _, rename, renamePos) if 
+            renamePos.includedIn(s.pos) && name != rename => is
+        }.headOption
+        selectedRename.map(selected => new RenamedImportProcessor(t, symbol))
       case _ => None
     }
     
@@ -109,7 +110,7 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
         case t: Tree => occurences contains t
       }
 
-      val renameTree = transform ({
+      val renameTree = transform {
         case t: ImportSelectorTree => 
           renameImportSelector(t, newName)
         case t: SymTree =>
@@ -118,7 +119,7 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
           renameTypeTree(t, newName, sym)
         case t @ Literal(Constant(value: TypeRef)) if isClassTag(t.value) =>  
           renameClassLiteral(newName, sym, t, value)
-      })
+      }
 
       val rename = topdown(isInTheIndex &> renameTree |> id)
       val renamedTrees = occurences flatMap (rename(_))
@@ -128,8 +129,6 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
   
   class DefaultProcessor(override val selectedTree: SymTree, override val selectedSymbol: Symbol) extends RenameProcessor {
     override def renameSymTree(t: SymTree, newName: String) =  t match {
-      // TODO @Mirko: is there a cleaner way to check if r is referring to
-      // a symbol that has been renamed at an import?
       case r: RefTree if r.name.toString.trim != selectedSymbol.name.toString.trim => 
         t
       case _ =>
@@ -147,7 +146,7 @@ abstract class Rename extends MultiStageRefactoring with TreeAnalysis with analy
       val annotations = t.symbol.annotations
       val referenced = annotations.find(a => a.symbol == sym)
       
-      // TODO @Mirko: this doesn't print right (reusing printer ignores changes annotations)
+      // TODO @Mirko: this doesn't print right (reusing printer ignores changes in annotations)
       val renamed = referenced match {
         case Some(ann) =>
           t.symbol.removeAnnotation(sym)

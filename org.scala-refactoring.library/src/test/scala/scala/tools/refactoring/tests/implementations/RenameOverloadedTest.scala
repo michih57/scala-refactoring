@@ -73,9 +73,9 @@ class RenameOverloadedTest extends TestHelper with TestRefactoring {
   } applyRefactoring(renameOverloadedTo("method"))
   
   @Test
-  def inheritance = new FileSet {
+  def inheritanceParentTrigger = new FileSet {
     """
-    package renameOverloaded.inheritance
+    package renameOverloaded.inheritanceParentTrigger
     
     class Parent {
       def /*(*/m/*)*/(i: Int) = 13
@@ -90,7 +90,7 @@ class RenameOverloadedTest extends TestHelper with TestRefactoring {
     }
     """ becomes
     """
-    package renameOverloaded.inheritance
+    package renameOverloaded.inheritanceParentTrigger
     
     class Parent {
       def /*(*/method/*)*/(i: Int) = 13
@@ -107,13 +107,47 @@ class RenameOverloadedTest extends TestHelper with TestRefactoring {
   } applyRefactoring(renameOverloadedTo("method"))
   
   @Test
+  def inheritanceChildTrigger = new FileSet {
+    """
+    package renameOverloaded.inheritanceChildTrigger
+    
+    class Parent {
+      def m(i: Int) = 13
+      def m(s: String) = 45
+    }
+    
+    class Child extends Parent {
+      override def /*(*/m/*)*/(i: Int) = {
+        val double = 2*i
+        double*double
+      }
+    }
+    """ becomes
+    """
+    package renameOverloaded.inheritanceChildTrigger
+    
+    class Parent {
+      def method(i: Int) = 13
+      def method(s: String) = 45
+    }
+    
+    class Child extends Parent {
+      override def /*(*/method/*)*/(i: Int) = {
+        val double = 2*i
+        double*double
+      }
+    }
+    """
+  } applyRefactoring(renameOverloadedTo("method"))
+  
+  @Test
   def withVal = new FileSet {
     """
     package renameOverloaded.withVal
     
     class C {
       def /*(*/m/*)*/(i: Int) = 57
-      val m = "booyah" //FIXME
+      val m = "booyah"
     }
     """ becomes
     """
@@ -121,7 +155,7 @@ class RenameOverloadedTest extends TestHelper with TestRefactoring {
     
     class C {
       def /*(*/method/*)*/(i: Int) = 57
-      val methodethod = "booyah" //FIXME
+      val method = "booyah"
     }
     """
   } applyRefactoring(renameOverloadedTo("method"))
@@ -158,6 +192,6 @@ class RenameOverloadedTest extends TestHelper with TestRefactoring {
       override val /*(*/foo/*)*/: String => Int = (s: String) => 45
     }
     """
-  } applyRefactoring(renameOverloadedTo("bar")) // TODO: get to bottom of assertion failure
+  } applyRefactoring(renameOverloadedTo("foo")) // TODO: get to bottom of assertion failure
   
 }

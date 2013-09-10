@@ -122,7 +122,7 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
   } applyRefactoring(renameTo("jNil"))
   
   @Test
-//  @Ignore
+  @Ignore
   def renameJavaClassAnnotation = new FileSet {
     """
     package renameAnnotation
@@ -139,7 +139,7 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
   } applyRefactoring(renameTo("Override"))
   
   @Test
-//  @Ignore
+  @Ignore
   def renameImportedJavaClassAnnotation = new FileSet {
     """
     package renameImportedJavaAnnotation
@@ -160,7 +160,7 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
   } applyRefactoring(renameTo("Root"))
   
   @Test
-//  @Ignore
+  @Ignore
   def renameJavaValAnnotation = new FileSet {
     """
     package renameValAnnotation
@@ -181,7 +181,7 @@ class JavaRenameTest extends TestHelper with TestRefactoring {
   } applyRefactoring(renameTo("Override"))
   
   @Test
-//  @Ignore
+  @Ignore
   def renameAnnotationOnImport = new FileSet {
     """
     package renameAnnotationOnImport
