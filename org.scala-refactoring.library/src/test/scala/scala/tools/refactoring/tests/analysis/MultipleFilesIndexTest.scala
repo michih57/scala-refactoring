@@ -466,7 +466,8 @@ class MultipleFilesIndexTest extends TestHelper with GlobalIndexes with FreshCom
     """ becomes
         "someMethod on line 3, someMethod on line 6, someMethod on line 9"
 
-  } apply(findOverrides)
+    } apply (findOverrides)
+  }
   
   @Test
   def javaAnnotation = {
